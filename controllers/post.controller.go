@@ -1,12 +1,11 @@
 package controllers
 
 import (
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/wpcodevo/golang-gorm-postgres/models"
 	"gorm.io/gorm"
 )
@@ -19,13 +18,12 @@ func NewPostController(DB *gorm.DB) PostController {
 	return PostController{DB}
 }
 
-func (pc *PostController) CreatePost(ctx *gin.Context) {
-	currentUser := ctx.MustGet("currentUser").(models.User)
+func (pc *PostController) CreatePost(ctx *fiber.Ctx) error {
+	currentUser := ctx.Locals("currentUser").(models.User)
 	var payload *models.CreatePostRequest
 
-	if err := ctx.ShouldBindJSON(&payload); err != nil {
-		ctx.JSON(http.StatusBadRequest, err.Error())
-		return
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "fail", "message": err.Error()})
 	}
 
 	now := time.Now()
@@ -41,30 +39,26 @@ func (pc *PostController) CreatePost(ctx *gin.Context) {
 	result := pc.DB.Create(&newPost)
 	if result.Error != nil {
 		if strings.Contains(result.Error.Error(), "duplicate key") {
-			ctx.JSON(http.StatusConflict, gin.H{"status": "fail", "message": "Post with that title already exists"})
-			return
+			return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{"status": "fail", "message": "Post with that title already exists"})
 		}
-		ctx.JSON(http.StatusBadGateway, gin.H{"status": "error", "message": result.Error.Error()})
-		return
+		return ctx.Status(fiber.StatusBadGateway).JSON(fiber.Map{"status": "error", "message": result.Error.Error()})
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{"status": "success", "data": newPost})
+	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{"status": "success", "data": newPost})
 }
 
-func (pc *PostController) UpdatePost(ctx *gin.Context) {
-	postId := ctx.Param("postId")
-	currentUser := ctx.MustGet("currentUser").(models.User)
+func (pc *PostController) UpdatePost(ctx *fiber.Ctx) error {
+	postId := ctx.Params("postId")
+	currentUser := ctx.Locals("currentUser").(models.User)
 
 	var payload *models.UpdatePost
-	if err := ctx.ShouldBindJSON(&payload); err != nil {
-		ctx.JSON(http.StatusBadGateway, gin.H{"status": "fail", "message": err.Error()})
-		return
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadGateway).JSON(fiber.Map{"status": "fail", "message": err.Error()})
 	}
 	var updatedPost models.Post
 	result := pc.DB.First(&updatedPost, "id = ?", postId)
 	if result.Error != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"status": "fail", "message": "No post with that title exists"})
-		return
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": "fail", "message": "No post with that title exists"})
 	}
 	now := time.Now()
 	postToUpdate := models.Post{
@@ -78,25 +72,24 @@ func (pc *PostController) UpdatePost(ctx *gin.Context) {
 
 	pc.DB.Model(&updatedPost).Updates(postToUpdate)
 
-	ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": updatedPost})
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "data": updatedPost})
 }
 
-func (pc *PostController) FindPostById(ctx *gin.Context) {
-	postId := ctx.Param("postId")
+func (pc *PostController) FindPostById(ctx *fiber.Ctx) error {
+	postId := ctx.Params("postId")
 
 	var post models.Post
 	result := pc.DB.First(&post, "id = ?", postId)
 	if result.Error != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"status": "fail", "message": "No post with that title exists"})
-		return
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": "fail", "message": "No post with that title exists"})
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": post})
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "data": post})
 }
 
-func (pc *PostController) FindPosts(ctx *gin.Context) {
-	var page = ctx.DefaultQuery("page", "1")
-	var limit = ctx.DefaultQuery("limit", "10")
+func (pc *PostController) FindPosts(ctx *fiber.Ctx) error {
+	page := ctx.Query("page", "1")
+	limit := ctx.Query("limit", "10")
 
 	intPage, _ := strconv.Atoi(page)
 	intLimit, _ := strconv.Atoi(limit)
@@ -105,24 +98,20 @@ func (pc *PostController) FindPosts(ctx *gin.Context) {
 	var posts []models.Post
 	results := pc.DB.Limit(intLimit).Offset(offset).Find(&posts)
 	if results.Error != nil {
-		ctx.JSON(http.StatusBadGateway, gin.H{"status": "error", "message": results.Error})
-		return
+		return ctx.Status(fiber.StatusBadGateway).JSON(fiber.Map{"status": "error", "message": results.Error})
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"status": "success", "results": len(posts), "data": posts})
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "results": len(posts), "data": posts})
 }
 
-func (pc *PostController) DeletePost(ctx *gin.Context) {
-	postId := ctx.Param("postId")
+func (pc *PostController) DeletePost(ctx *fiber.Ctx) error {
+	postId := ctx.Params("postId")
 
 	result := pc.DB.Delete(&models.Post{}, "id = ?", postId)
 
 	if result.Error != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"status": "fail", "message": "No post with that title exists"})
-		return
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": "fail", "message": "No post with that title exists"})
 	}
 
-	ctx.JSON(http.StatusNoContent, nil)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
-
-

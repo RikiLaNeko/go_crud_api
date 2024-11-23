@@ -1,11 +1,10 @@
 package main
 
 import (
+	"crud_api/initializers"
+	"crud_api/models"
 	"fmt"
 	"log"
-
-	"github.com/wpcodevo/golang-gorm-postgres/initializers"
-	"github.com/wpcodevo/golang-gorm-postgres/models"
 )
 
 func init() {
@@ -21,5 +20,3 @@ func main() {
 	initializers.DB.AutoMigrate(&models.User{}, &models.Post{})
 	fmt.Println("? Migration complete")
 }
-
-

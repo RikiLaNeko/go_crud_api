@@ -1,18 +1,16 @@
 package main
 
 import (
+	"crud_api/controllers"
+	"crud_api/initializers"
+	"crud_api/routes"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"log"
-	"net/http"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/wpcodevo/golang-gorm-postgres/controllers"
-	"github.com/wpcodevo/golang-gorm-postgres/initializers"
-	"github.com/wpcodevo/golang-gorm-postgres/routes"
 )
 
 var (
-	server              *gin.Engine
+	server              *fiber.App
 	AuthController      controllers.AuthController
 	AuthRouteController routes.AuthRouteController
 
@@ -40,7 +38,7 @@ func init() {
 	PostController = controllers.NewPostController(initializers.DB)
 	PostRouteController = routes.NewRoutePostController(PostController)
 
-	server = gin.Default()
+	server = fiber.New()
 }
 
 func main() {
@@ -49,20 +47,20 @@ func main() {
 		log.Fatal("? Could not load environment variables", err)
 	}
 
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:8080", config.ClientOrigin}
-	corsConfig.AllowCredentials = true
+	server.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:8080, " + config.ClientOrigin,
+		AllowCredentials: true,
+	}))
 
-	server.Use(cors.New(corsConfig))
-
-	router := server.Group("/api")
-	router.GET("/healthchecker", func(ctx *gin.Context) {
+	server.Get("/api/healthchecker", func(ctx *fiber.Ctx) error {
 		message := "Welcome to Golang with Gorm and Postgres"
-		ctx.JSON(http.StatusOK, gin.H{"status": "success", "message": message})
+		return ctx.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": message})
 	})
 
-	AuthRouteController.AuthRoute(router)
-	UserRouteController.UserRoute(router)
-	PostRouteController.PostRoute(router)
-	log.Fatal(server.Run(":" + config.ServerPort))
+	api := server.Group("/api")
+	AuthRouteController.AuthRoute(api)
+	UserRouteController.UserRoute(api)
+	PostRouteController.PostRoute(api)
+
+	log.Fatal(server.Listen(":" + config.ServerPort))
 }

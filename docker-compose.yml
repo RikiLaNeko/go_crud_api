@@ -3,11 +3,20 @@ services:
     image: postgres
     container_name: postgres
     ports:
-      - 6500:5432
+      - "6500:5432"
     env_file:
-      - ./app.env
+      - app.env
     volumes:
       - postgres:/var/lib/postgresql/data
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    ports:
+      - "6501:80"
+    env_file:
+      - app.env
+    depends_on:
+      - postgres
 volumes:
   postgres:
 
